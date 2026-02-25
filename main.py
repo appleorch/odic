@@ -19,7 +19,7 @@ from extensometer import (
     pick_extensometer_points,
     compute_extensometer_strain,
 )
-from dic_engine import create_engine, track_frame, shutdown_engine
+from dic_engine import create_engine, track_frame, shutdown_engine, update_reference
 from strain import compute_strain_fields, mask_fields
 from sync import parse_daq, match_frames_to_daq
 from output import (
@@ -180,6 +180,12 @@ def main():
         ref_gray, roi, args.subset, args.step, args.ncc_threshold,
     )
 
+    # Accumulators for incremental tracking (frame-to-frame).
+    ny, nx = grid_x.shape
+    u_accum = np.zeros((ny, nx), dtype=np.float64)
+    v_accum = np.zeros((ny, nx), dtype=np.float64)
+    last_fields = None
+
     for fi in range(1, n_frames):
         pct = fi / (n_frames - 1) * 100 if n_frames > 1 else 100
         print(f"\rProcessing frame {fi}/{n_frames - 1}  [{pct:5.1f}%]",
@@ -193,8 +199,20 @@ def main():
             continue
         def_gray = cv2.cvtColor(def_bgr, cv2.COLOR_BGR2GRAY)
 
-        # ---- NCC tracking ----
-        _, _, u_px, v_px, corr = track_frame(def_gray)
+        # ---- NCC tracking (incremental: previous frame → current frame) ----
+        _, _, u_inc, v_inc, corr = track_frame(def_gray)
+
+        # Accumulate incremental displacements into totals from frame 0.
+        good = ~np.isnan(u_inc)
+        u_accum[good] += u_inc[good]
+        v_accum[good] += v_inc[good]
+
+        # For this frame's output, use accumulated totals; NaN where this
+        # frame's tracking failed (so strain/mask reflect current quality).
+        u_px = u_accum.copy()
+        v_px = v_accum.copy()
+        u_px[~good] = np.nan
+        v_px[~good] = np.nan
 
         # Physical displacements.
         u_phys = u_px * scale
@@ -286,6 +304,10 @@ def main():
                 grid_x, grid_y, scale, unit, fname, fi, roi, repair_zone,
             )
 
+        # Advance reference image so next frame is tracked incrementally.
+        update_reference(def_gray)
+        last_fields = fields
+
     print("\n", flush=True)
     close_video_writers(video_writers)
 
@@ -322,27 +344,14 @@ def main():
     write_summary_csv(summary_rows, out_dir)
 
     # ---- Final-frame contour plots ----
-    if grid_x is not None and summary_rows:
+    if grid_x is not None and last_fields is not None:
         print("Generating final-frame contour plots...", flush=True)
-        # Re-compute the final frame fields for contour plotting.
-        last_img = cv2.imread(image_paths[-1], cv2.IMREAD_COLOR)
-        if last_img is not None:
-            last_gray = cv2.cvtColor(last_img, cv2.COLOR_BGR2GRAY)
-            _, _, u_px, v_px, corr = track_frame(last_gray)
-            u_phys = u_px * scale
-            v_phys = v_px * scale
-            exx, eyy, exy, vm = compute_strain_fields(u_phys, v_phys, step_phys)
-            fields = {
-                "U": u_phys, "V": v_phys,
-                "exx": exx, "eyy": eyy, "exy": exy, "von_mises": vm,
-            }
-            fields = mask_fields(fields, corr, args.ncc_threshold)
-            ext_plot_pts = (ext_p1, ext_p2) if has_ext else None
-            for fname in field_names:
-                save_contour_plot(
-                    fields[fname], fname, grid_x, grid_y,
-                    scale, unit, roi, repair_zone, ext_plot_pts, out_dir,
-                )
+        ext_plot_pts = (ext_p1, ext_p2) if has_ext else None
+        for fname in field_names:
+            save_contour_plot(
+                last_fields[fname], fname, grid_x, grid_y,
+                scale, unit, roi, repair_zone, ext_plot_pts, out_dir,
+            )
 
     shutdown_engine()
     print("Done.", flush=True)
