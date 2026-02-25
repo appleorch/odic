@@ -206,6 +206,7 @@ def create_engine(ref_gray, roi, subset_size, step_size,
 
     _engine.update({
         "pool": pool,
+        "shared_ref": shared_ref,
         "shared_def": shared_def,
         "h": h_img, "w": w_img,
         "grid_x": grid_x, "grid_y": grid_y,
@@ -269,6 +270,21 @@ def shutdown_engine():
         pool.close()
         pool.join()
         _engine["pool"] = None
+
+
+def update_reference(new_ref_gray):
+    """Replace the shared reference image for incremental tracking.
+
+    Call this after :func:`track_frame` to advance the reference to the
+    current deformed frame, so that each subsequent call measures only the
+    *incremental* displacement from the previous frame.
+    """
+    shared_ref = _engine.get("shared_ref")
+    h, w = _engine["h"], _engine["w"]
+    if shared_ref is not None:
+        np.frombuffer(shared_ref, dtype=np.uint8).reshape(h, w)[:] = new_ref_gray
+    # Also update the fallback copy used by single-process mode.
+    _engine["ref_gray"] = new_ref_gray
 
 
 # ── standalone single-call API (kept for convenience) ──────────────────
