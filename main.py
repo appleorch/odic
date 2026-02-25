@@ -33,11 +33,25 @@ from output import (
 
 # ── CLI ──────────────────────────────────────────────────────────────────
 
+def _ask_folder():
+    """Open a folder-picker dialog and return the selected path (or *None*)."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        folder = filedialog.askdirectory(title="Select folder of .tif image pairs")
+        root.destroy()
+        return folder if folder else None
+    except Exception:
+        return None
+
+
 def build_parser():
     p = argparse.ArgumentParser(
         description="2-D DIC analysis tool for tensile test specimens.",
     )
-    p.add_argument("--folder", required=True,
+    p.add_argument("--folder", required=False, default=None,
                    help="Path to folder of .tif stereo image pairs.")
     p.add_argument("--camera", type=int, choices=[0, 1], default=0,
                    help="Camera index to analyse (0=left, 1=right).")
@@ -92,6 +106,11 @@ def _zone_stats(field, grid_x, grid_y, rect):
 
 def main():
     args = build_parser().parse_args()
+
+    if args.folder is None:
+        args.folder = _ask_folder()
+    if not args.folder:
+        sys.exit("Error: --folder is required. Usage:  dic_tool.exe --folder PATH")
 
     out_dir = os.path.join(os.path.dirname(args.folder.rstrip(os.sep)), "output")
     _ensure_dirs(out_dir)

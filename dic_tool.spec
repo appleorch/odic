@@ -34,6 +34,8 @@ a = Analysis(
         'matplotlib.pyplot',
         'cv2',
         'natsort',
+        'tkinter',
+        'tkinter.filedialog',
         'calibration',
         'roi',
         'extensometer',
