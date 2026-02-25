@@ -10,7 +10,10 @@ import numpy as np
 from natsort import natsorted
 
 from calibration import run_calibration
-from roi import select_roi, select_repair_zone, roi_to_slice, point_in_rect
+from roi import (
+    select_roi, select_repair_zone, roi_to_slice,
+    point_in_polygon, make_grid_mask,
+)
 from extensometer import (
     pick_extensometer_points,
     compute_extensometer_strain,
@@ -86,15 +89,11 @@ def load_images(folder, camera):
 
 # ── statistics helpers ───────────────────────────────────────────────────
 
-def _zone_stats(field, grid_x, grid_y, rect):
-    """Mean and max of *field* for grid points inside *rect*."""
-    if rect is None:
+def _zone_stats(field, grid_x, grid_y, polygon):
+    """Mean and max of *field* for grid points inside *polygon*."""
+    if polygon is None:
         return np.nan, np.nan
-    x, y, w, h = rect
-    mask = (
-        (grid_x >= x) & (grid_x < x + w) &
-        (grid_y >= y) & (grid_y < y + h)
-    )
+    mask = make_grid_mask(grid_x, grid_y, polygon)
     vals = field[mask]
     vals = vals[~np.isnan(vals)]
     if vals.size == 0:
@@ -137,15 +136,17 @@ def main():
     step_phys = args.step * scale
 
     # 4. ROI.
-    print("Select the primary ROI (press ENTER to confirm, C to cancel).", flush=True)
+    print("Select the primary ROI (polygon). See window for controls.", flush=True)
     roi = select_roi(ref_bgr)
     if roi is None:
         print("No ROI selected — using full image.", flush=True)
+    else:
+        print(f"ROI defined with {len(roi)} vertices.", flush=True)
 
     # 5. Repair zone.
     repair_zone = select_repair_zone(ref_bgr)
     if repair_zone is not None:
-        print(f"Repair zone defined: {repair_zone}", flush=True)
+        print(f"Repair zone defined with {len(repair_zone)} vertices.", flush=True)
 
     # 6. Virtual extensometer.
     ext_p1, ext_p2 = pick_extensometer_points(ref_bgr)
@@ -227,7 +228,7 @@ def main():
                 )
                 peak_px = (int(grid_x[peak_idx]), int(grid_y[peak_idx]))
                 peak_phys = (peak_px[0] * scale, peak_px[1] * scale)
-                in_repair = point_in_rect(peak_px[0], peak_px[1], repair_zone)
+                in_repair = point_in_polygon(peak_px[0], peak_px[1], repair_zone)
                 zone_label = "repair zone" if in_repair else "base material"
                 msg = (
                     f"\n  ** Strain localization at frame {fi}: "
@@ -246,11 +247,8 @@ def main():
 
         # Base material = ROI minus repair zone.
         if roi is not None and repair_zone is not None:
-            rx, ry, rw, rh = repair_zone
-            base_mask = ~(
-                (grid_x >= rx) & (grid_x < rx + rw) &
-                (grid_y >= ry) & (grid_y < ry + rh)
-            )
+            repair_mask = make_grid_mask(grid_x, grid_y, repair_zone)
+            base_mask = ~repair_mask
             base_vals = vm_field[base_mask]
             base_vals = base_vals[~np.isnan(base_vals)]
             base_mean = float(np.nanmean(base_vals)) if base_vals.size else np.nan
