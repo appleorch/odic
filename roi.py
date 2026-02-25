@@ -29,15 +29,15 @@ def make_grid_mask(grid_x, grid_y, polygon):
     """Boolean array: *True* where the grid point is inside *polygon*."""
     if polygon is None:
         return np.ones(grid_x.shape, dtype=bool)
-    contour = polygon.reshape(-1, 1, 2).astype(np.float32)
-    ny, nx = grid_x.shape
-    mask = np.zeros((ny, nx), dtype=bool)
-    for iy in range(ny):
-        for ix in range(nx):
-            pt = (float(grid_x[iy, ix]), float(grid_y[iy, ix]))
-            if cv2.pointPolygonTest(contour, pt, False) >= 0:
-                mask[iy, ix] = True
-    return mask
+    pts = polygon.reshape(-1, 1, 2).astype(np.int32)
+    # Build a raster mask and do a vectorized lookup instead of per-point tests.
+    max_y = max(int(np.max(grid_y)), int(np.max(polygon[:, 1]))) + 1
+    max_x = max(int(np.max(grid_x)), int(np.max(polygon[:, 0]))) + 1
+    raster = np.zeros((max_y + 1, max_x + 1), dtype=np.uint8)
+    cv2.fillPoly(raster, [pts], 255)
+    gy = np.clip(grid_y.astype(np.intp), 0, max_y)
+    gx = np.clip(grid_x.astype(np.intp), 0, max_x)
+    return raster[gy, gx] > 0
 
 
 def roi_to_slice(roi, image_shape):
