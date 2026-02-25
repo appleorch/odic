@@ -200,8 +200,10 @@ def track_subsets(ref_gray, def_gray, roi, subset_size, step_size,
                 u[iy_start:iy_start + n] = u_ch
                 v[iy_start:iy_start + n] = v_ch
                 corr[iy_start:iy_start + n] = c_ch
-    except Exception:
+    except Exception as exc:
         # Fallback: single-process if multiprocessing fails.
+        print(f"\n  WARNING: multiprocessing failed ({exc}), "
+              "falling back to single-process mode.", flush=True)
         _init_worker(*init_args)
         for task in tasks:
             iy_start, u_ch, v_ch, c_ch = _track_chunk(task)
