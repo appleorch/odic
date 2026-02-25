@@ -19,7 +19,7 @@ from extensometer import (
     pick_extensometer_points,
     compute_extensometer_strain,
 )
-from dic_engine import track_subsets
+from dic_engine import create_engine, track_frame, shutdown_engine
 from strain import compute_strain_fields, mask_fields
 from sync import parse_daq, match_frames_to_daq
 from output import (
@@ -176,7 +176,9 @@ def main():
     plt.close(fig_tmp)
     video_writers = init_video_writers(field_names, (vid_h, vid_w), out_dir, fps=10)
 
-    grid_x = grid_y = None
+    grid_x, grid_y = create_engine(
+        ref_gray, roi, args.subset, args.step, args.ncc_threshold,
+    )
 
     for fi in range(1, n_frames):
         pct = fi / (n_frames - 1) * 100 if n_frames > 1 else 100
@@ -192,12 +194,7 @@ def main():
         def_gray = cv2.cvtColor(def_bgr, cv2.COLOR_BGR2GRAY)
 
         # ---- NCC tracking ----
-        gx, gy, u_px, v_px, corr = track_subsets(
-            ref_gray, def_gray, roi,
-            args.subset, args.step, args.ncc_threshold,
-        )
-        if grid_x is None:
-            grid_x, grid_y = gx, gy
+        _, _, u_px, v_px, corr = track_frame(def_gray)
 
         # Physical displacements.
         u_phys = u_px * scale
@@ -331,10 +328,7 @@ def main():
         last_img = cv2.imread(image_paths[-1], cv2.IMREAD_COLOR)
         if last_img is not None:
             last_gray = cv2.cvtColor(last_img, cv2.COLOR_BGR2GRAY)
-            _, _, u_px, v_px, corr = track_subsets(
-                ref_gray, last_gray, roi,
-                args.subset, args.step, args.ncc_threshold,
-            )
+            _, _, u_px, v_px, corr = track_frame(last_gray)
             u_phys = u_px * scale
             v_phys = v_px * scale
             exx, eyy, exy, vm = compute_strain_fields(u_phys, v_phys, step_phys)
@@ -350,6 +344,7 @@ def main():
                     scale, unit, roi, repair_zone, ext_plot_pts, out_dir,
                 )
 
+    shutdown_engine()
     print("Done.", flush=True)
 
 
