@@ -124,9 +124,9 @@ class _PolygonSelector:
 
         # HUD
         if not self.closed:
-            msg = "L-click: add point | Close: click 1st pt | Scroll/+/-: zoom | R-drag: pan"
+            msg = "L-click: add point | Close: click 1st pt | Ctrl+Z: undo | Scroll/+/-: zoom | R-drag: pan"
         else:
-            msg = "ENTER: confirm | ESC: cancel | R: reset"
+            msg = "ENTER: confirm | ESC: cancel | R: reset | Ctrl+Z: undo"
         cv2.putText(view, msg, (10, self.win_h - 12),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
         return view
@@ -196,6 +196,12 @@ class _PolygonSelector:
             elif key in (ord('r'), ord('R')):   # reset
                 self.points = []
                 self.closed = False
+                cv2.imshow(self.title, self._render())
+            elif key == 26:                     # Ctrl+Z — undo
+                if self.closed:
+                    self.closed = False
+                elif self.points:
+                    self.points.pop()
                 cv2.imshow(self.title, self._render())
             elif key in (ord('+'), ord('=')):   # zoom in via keyboard
                 cx, cy = self.win_w // 2, self.win_h // 2

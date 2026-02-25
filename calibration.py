@@ -8,16 +8,21 @@ def _draw_calibration_line(image):
     """Let the user click two points on the image; return ((x1,y1),(x2,y2))."""
     points = []
     display = image.copy()
-    window = "Calibration - click two points on a known feature, then press any key"
+    window = "Calibration - click two points | Ctrl+Z: undo | then press any key"
+
+    def _redraw():
+        display[:] = image
+        for pt in points:
+            cv2.circle(display, pt, 5, (0, 0, 255), -1)
+        if len(points) == 2:
+            cv2.line(display, points[0], points[1], (0, 255, 0), 2)
+        cv2.imshow(window, display)
 
     def _on_mouse(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             if len(points) < 2:
                 points.append((x, y))
-                cv2.circle(display, (x, y), 5, (0, 0, 255), -1)
-                if len(points) == 2:
-                    cv2.line(display, points[0], points[1], (0, 255, 0), 2)
-                cv2.imshow(window, display)
+                _redraw()
 
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
     cv2.imshow(window, display)
@@ -25,7 +30,10 @@ def _draw_calibration_line(image):
 
     while True:
         key = cv2.waitKey(50) & 0xFF
-        if len(points) == 2 and key != 255:
+        if key == 26 and points:            # Ctrl+Z — undo
+            points.pop()
+            _redraw()
+        elif len(points) == 2 and key != 255:
             break
     cv2.destroyWindow(window)
 
