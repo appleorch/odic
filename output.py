@@ -104,9 +104,10 @@ def write_video_frame(writer, field, grid_x, grid_y, scale, unit, name,
     fig.canvas.draw()
 
     # Convert matplotlib figure to BGR image for OpenCV.
-    buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    bgr = cv2.cvtColor(buf, cv2.COLOR_RGB2BGR)
+    buf = np.asarray(fig.canvas.buffer_rgba(), dtype=np.uint8)
+    buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (4,))
+    rgb = buf[:, :, :3]  # drop alpha channel
+    bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     # Resize to match writer dimensions if needed.
     writer.write(bgr)
     plt.close(fig)

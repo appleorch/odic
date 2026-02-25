@@ -32,7 +32,7 @@ def pick_extensometer_points(reference_image):
             points.append((x, y))
             _redraw()
 
-    cv2.namedWindow(window, cv2.WINDOW_NORMAL)
+    cv2.namedWindow(window, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
     cv2.imshow(window, display)
     cv2.setMouseCallback(window, _on_mouse)
 
