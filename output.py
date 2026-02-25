@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")  # Non-interactive backend (safe for PyInstaller).
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Polygon as MplPolygon
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -29,17 +29,17 @@ def _phys_extent(grid_x, grid_y, scale):
 
 
 def _add_overlays(ax, roi, repair_zone, scale, ext_pts=None):
-    """Draw ROI and repair zone rectangles and extensometer line."""
+    """Draw ROI and repair zone polygons and extensometer line."""
     if roi is not None:
-        x, y, w, h = roi
-        ax.add_patch(Rectangle(
-            (x * scale, y * scale), w * scale, h * scale,
+        pts = roi * scale
+        ax.add_patch(MplPolygon(
+            pts, closed=True,
             linewidth=1.5, edgecolor="white", facecolor="none", linestyle="--",
         ))
     if repair_zone is not None:
-        x, y, w, h = repair_zone
-        ax.add_patch(Rectangle(
-            (x * scale, y * scale), w * scale, h * scale,
+        pts = repair_zone * scale
+        ax.add_patch(MplPolygon(
+            pts, closed=True,
             linewidth=1.5, edgecolor="cyan", facecolor="none", linestyle=":",
         ))
     if ext_pts is not None:

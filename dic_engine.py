@@ -1,5 +1,6 @@
 """Core DIC engine: normalized cross-correlation (NCC) subset tracking."""
 
+import cv2
 import numpy as np
 from scipy.signal import fftconvolve
 
@@ -48,7 +49,7 @@ def track_subsets(ref_gray, def_gray, roi, subset_size, step_size,
     Parameters
     ----------
     ref_gray, def_gray : 2-D uint8 arrays
-    roi : (x, y, w, h) or None  — analysis region
+    roi : ndarray (N,2) polygon, or None  — analysis region
     subset_size : int (odd, e.g. 29)
     step_size : int (e.g. 10)
     ncc_threshold : float  — minimum acceptable peak NCC
@@ -68,11 +69,13 @@ def track_subsets(ref_gray, def_gray, roi, subset_size, step_size,
     half = subset_size // 2
     h_img, w_img = ref_gray.shape
 
-    # Determine analysis bounds from ROI.
+    # Determine analysis bounds from ROI polygon (bounding box).
     if roi is not None:
-        rx, ry, rw, rh = roi
+        rx, ry, rw, rh = cv2.boundingRect(roi.reshape(-1, 1, 2))
+        roi_contour = roi.reshape(-1, 1, 2).astype(np.float32)
     else:
         rx, ry, rw, rh = 0, 0, w_img, h_img
+        roi_contour = None
 
     # Build grid of subset centres (pixel coords).
     xs = np.arange(rx + half, rx + rw - half, step_size)
@@ -88,6 +91,11 @@ def track_subsets(ref_gray, def_gray, roi, subset_size, step_size,
         for ix in range(nx):
             cx = int(grid_x[iy, ix])
             cy = int(grid_y[iy, ix])
+
+            # Skip grid points outside the polygon ROI.
+            if roi_contour is not None:
+                if cv2.pointPolygonTest(roi_contour, (float(cx), float(cy)), False) < 0:
+                    continue
 
             # Extract template from reference.
             t_y0 = cy - half
